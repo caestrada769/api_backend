@@ -15,6 +15,17 @@ const D_pedidoSchema = Schema(
         fecha_entrega: {
             type: Date,
             required: [true, 'El campo fecha entrega es requerido']
+        },
+
+        estado: {
+            type: String,
+            required: true,
+            enum: ['Tomado','En preparacion', 'Terminado']
+        },
+
+        fecha_actualizacion: {
+            type: Date,
+            default: new Date()
         }
     }
 )

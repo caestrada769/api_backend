@@ -7,97 +7,57 @@ const D_pedido = require('../models/d_pedido');
 const Producto = require('../models/producto');
 
 //Consultar
-const produccionGet = async(req, res = response) => {
-    const {producto} = req.query //Desestructuración
-
-    //Consultar todas la rodenes de producción y mostarlas de forma ascendente
-    const producciones = await Produccion.find().sort({ fecha_entrega: 1 }) // cuando algo es asincronico debe ejecutarse con await(espera)
-
-    res.json({
-        producciones
-    })
-}
-
-// Registrar o insertar
-const produccionPost = async (req, res = response) => {
-  let mensaje = '';
-
+const produccionGet = async (req, res = response) => {
   try {
+    // Obtener la fecha actual del sistema
+    const fechaActual = new Date();
+
     // Obtener la información de la colección D_Pedido y Producto
     const dPedidos = await D_pedido.find();
     const productos = await Producto.find();
 
-    // Crear un mapa para almacenar la cantidad por producto y fecha de entrega
-    const cantidadesPorProductoFecha = new Map();
+    // Crear un mapa para almacenar la información requerida
+    const producciones = new Map();
 
-    // Obtener la cantidad por producto y fecha de entrega desde la colección D_Pedido
+    // Obtener la información requerida desde la colección D_Pedido
     for (const dPedido of dPedidos) {
-      const { producto, fecha_entrega, cantidad } = dPedido;
+      const { producto, fecha_entrega, cantidad, fecha_actualizacion, estado } = dPedido;
 
-      const key = `${producto}-${fecha_entrega}`;
+      // Verificar si la fecha de entrega es mayor a la fecha actual
+      if (new Date(fecha_entrega) > fechaActual) {
+        const key = `${producto}-${fecha_entrega}`;
 
-      if (cantidadesPorProductoFecha.has(key)) {
-        cantidadesPorProductoFecha.set(key, cantidadesPorProductoFecha.get(key) + cantidad);
-      } else {
-        cantidadesPorProductoFecha.set(key, cantidad);
-      }
-    }
+        if (!producciones.has(key)) {
+          // Obtener la categoría del producto desde la colección Producto
+          const categoria = productos.find((prod) => prod.nombre === producto)?.categoria;
 
-    const existingProducciones = await Produccion.find();
-
-    // Verificar si existen registros en Produccion que no estén en d_pedido
-    for (const produccion of existingProducciones) {
-      const { producto, fecha_entrega } = produccion;
-      const key = `${producto}-${fecha_entrega}`;
-
-      if (!cantidadesPorProductoFecha.has(key)) {
-        await produccion.deleteOne();
-      }
-    }
-
-    // Realizar el registro de Producción con la información obtenida
-    for (const [key, cantidad] of cantidadesPorProductoFecha.entries()) {
-      const [producto, fecha_entrega] = key.split('-');
-
-      const categoria = productos.find((prod) => prod.nombre === producto)?.categoria;
-
-      // Verificar si ya existe un registro de Producción con el mismo producto y fecha de entrega
-      let existingProduccion = await Produccion.findOne({ producto, fecha_entrega });
-
-      if (existingProduccion) {
-        // Si ya existe una producción, se verifica si el estado es "En espera"
-        if (existingProduccion.estado !== "En espera") {
-          continue; // Se salta la iteración y pasa al siguiente registro
+          // Agregar la información al mapa de producciones
+          producciones.set(key, {
+            area: categoria,
+            producto,
+            cantidad,
+            fecha_actualizacion,
+            estado,
+            fecha_entrega,
+          });
+        } else {
+          // Actualizar la cantidad en caso de existir registro con el mismo producto y fecha de entrega
+          producciones.get(key).cantidad += cantidad;
         }
-        existingProduccion.cantidad = cantidad;
-        existingProduccion.fecha_actualizacion = new Date(); // Se actualiza la fecha de actualización
-        await existingProduccion.save();
-      } else {
-        const produccion = new Produccion({
-          area: categoria,
-          producto,
-          cantidad,
-          fecha_actualizacion: new Date(), // Obtener la fecha actual del equipo
-          estado: "En espera", // Estado inicial como "En espera"
-          fecha_entrega,
-        });
-
-        await produccion.save();
       }
     }
 
-    mensaje = 'Las órdenes de producción se actualizaron exitosamente';
-  } catch (error) {
-    console.error('Ocurrió un error al crear las órdenes de producción:', error.message);
-    mensaje = 'Ocurrió un error al actualizar las órdenes de producción';
-  }
+    // Obtener los valores del mapa de producciones
+    const produccionesArray = Array.from(producciones.values());
 
-  res.json({
-    msg: mensaje,
-  });
+    res.json({ produccionesArray });
+  } catch (error) {
+    console.error('Ocurrió un error al obtener la información de producción:', error.message);
+    res.status(500).json({ msg: 'Ocurrió un error al obtener la información de producción' });
+  }
 };
 
-  
+
 
 //Modificar
 const produccionPut = async(req,res = response) => {
@@ -117,27 +77,8 @@ const produccionPut = async(req,res = response) => {
     })
 }
 
-//Eliminar
-const produccionDelete = async(req,res = response) => {
-  
-    const {_id} = req.body
-    let mensaje = ''
-
-    try {
-        const produccion = await Produccion.deleteOne({_id: _id}) //Buscar por el id y eliminar el registro
-        mensaje = 'La produccion se elimino exitosamente'
-    } catch (error) {
-        mensaje = 'Se presentaron problemas al eliminar la produccion'
-    }
-
-    res.json({
-        msg: mensaje
-    })
-}
 
 module.exports = {
     produccionGet,
-    produccionPost,
-    produccionPut,
-    produccionDelete
+    produccionPut
 }

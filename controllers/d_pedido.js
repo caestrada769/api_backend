@@ -42,22 +42,37 @@ const d_pedidoPost = async(req,res = response) => {
 }
 
 //Modificar
-const d_pedidoPut = async(req,res = response) => {
+const d_pedidoPut = async (req, res = response) => {
+    const { producto, cantidad, fecha_entrega, estado, fecha_actualizacion } = req.body;
+    let mensaje = '';
   
-    const {producto,cantidad,fecha_entrega} = req.body
-    let mensaje = ''
-
     try {
-        const d_pedido = await D_pedido.findOneAndUpdate({producto: producto},{cantidad: cantidad,fecha_entrega: fecha_entrega}) //Buscar por el producto y modificar
-        mensaje = 'La actualización se realizo exitosamente'
+      // Buscar los registros que cumplan con el filtro
+      const registros = await D_pedido.find({ producto: producto, fecha_entrega: fecha_entrega });
+  
+      if (registros.length > 0) {
+        // Actualizar cada registro individualmente
+        for (const registro of registros) {
+          registro.estado = estado;
+          registro.fecha_actualizacion = new Date();
+          await registro.save();
+        }
+  
+        mensaje = 'La actualización se realizó exitosamente';
+      } else {
+        mensaje = 'No se encontraron registros para actualizar';
+      }
     } catch (error) {
-        mensaje = 'Se presentaron problemas en la modificación'
+      console.error('Se presentaron problemas en la modificación:', error);
+      mensaje = 'Se presentaron problemas en la modificación de la orden';
     }
-
+  
     res.json({
-        msg: mensaje
-    })
-}
+      msg: mensaje
+    });
+  };
+  
+  
 
 //Eliminar
 const d_pedidoDelete = async(req,res = response) => {
